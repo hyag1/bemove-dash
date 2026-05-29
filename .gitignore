@@ -1,0 +1,10 @@
+# Credenciais — NUNCA enviar para o Git
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
