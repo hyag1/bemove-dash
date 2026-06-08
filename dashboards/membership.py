@@ -419,21 +419,28 @@ def render_membership_dashboard(
         source_options += [SOURCE_API]
     source_options += [SOURCE_DEMO] if allow_demo else []
     sync_run: dict | None = None
-    with st.sidebar:
-        st.markdown("### Fonte de dados")
-        source = st.radio("Origem", source_options, label_visibility="collapsed")
-        if store_config is not None:
-            sync_run = _render_supabase_status(store_config, client.id)
-            if can_manage_data and st.button("Sincronizar EVO", use_container_width=True):
-                if _sync_members_to_supabase(
-                    store_config=store_config,
-                    client=client,
-                    api_config=api_config,
-                ):
-                    st.rerun()
-        if can_manage_data and source == SOURCE_API and st.button("Atualizar cache API", use_container_width=True):
-            _clear_api_cache(api_config)
-            st.rerun()
+    source = source_options[0]
+    if can_manage_data:
+        with st.sidebar:
+            st.markdown("### Fonte de dados")
+            source = st.radio("Origem", source_options, label_visibility="collapsed")
+            if store_config is not None:
+                sync_run = _render_supabase_status(store_config, client.id)
+                if st.button("Sincronizar EVO", use_container_width=True):
+                    if _sync_members_to_supabase(
+                        store_config=store_config,
+                        client=client,
+                        api_config=api_config,
+                    ):
+                        st.rerun()
+            if source == SOURCE_API and st.button("Atualizar cache API", use_container_width=True):
+                _clear_api_cache(api_config)
+                st.rerun()
+    elif store_config is not None:
+        try:
+            _, sync_run = _cached_supabase_status(store_config, client.id)
+        except SupabaseStoreError:
+            sync_run = None
 
     st.markdown('<p class="eyebrow">Painel de clientes</p>', unsafe_allow_html=True)
     st.markdown(f'<p class="page-title">{client.name}</p>', unsafe_allow_html=True)
