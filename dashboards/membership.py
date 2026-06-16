@@ -140,6 +140,13 @@ def _filter_by_date(frame: pd.DataFrame, start: date, end: date) -> pd.DataFrame
     return frame[(dates >= start) & (dates <= end)].copy()
 
 
+def _active_members_for_period(monthly: pd.DataFrame) -> int:
+    if monthly.empty:
+        return 0
+    latest_period = monthly.sort_values("periodo_date").iloc[-1]
+    return int(latest_period["base_ativa"])
+
+
 def _default_period(date_min: date, date_max: date) -> tuple[date, date]:
     current_month_start = date.today().replace(day=1)
     latest_month_start = date_max.replace(day=1)
@@ -204,13 +211,14 @@ def _render_active_chart(monthly: pd.DataFrame) -> None:
 
 def _render_metrics(analytics: MembershipAnalytics, monthly: pd.DataFrame) -> None:
     totals = analytics.totals
+    active_members = _active_members_for_period(monthly)
     new_members = int(monthly["novos_clientes"].sum())
     adhesions = int(monthly["adesoes"].sum())
     renewals = int(monthly["renovacoes"].sum())
     cancellations = int(monthly["cancelamentos"].sum())
 
     first_row = st.columns(4, gap="small")
-    first_row[0].metric("Membros ativos", _integer(totals["membros_ativos"]))
+    first_row[0].metric("Membros ativos", _integer(active_members))
     first_row[1].metric("Membros inativos", _integer(totals["membros_inativos"]))
     first_row[2].metric("Risco de evasao", _integer(totals["risco_evasao"]), help="Ativos sem acesso ha mais de 30 dias.")
     first_row[3].metric("Acessos bloqueados", _integer(totals["acessos_bloqueados"]))
@@ -519,7 +527,8 @@ def render_membership_dashboard(
             _render_active_chart(monthly)
         st.caption(
             "A serie historica estima a base ativa pelas vigencias das matriculas. "
-            "Os cards superiores usam o status atual informado diretamente pela EVO."
+            "O card Membros ativos acompanha o fim do periodo selecionado; "
+            "os demais cards de status usam a posicao atual informada pela EVO."
         )
 
     with engagement:
