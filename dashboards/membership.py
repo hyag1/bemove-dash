@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import calendar
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timezone
 from threading import Lock
@@ -147,12 +148,31 @@ def _active_members_for_period(monthly: pd.DataFrame) -> int:
     return int(latest_period["base_ativa"])
 
 
-def _default_period(date_min: date, date_max: date) -> tuple[date, date]:
-    current_month_start = date.today().replace(day=1)
+def _selector_date_max(latest_period_start: date, fetched_at: datetime) -> date:
+    month_end = date(
+        latest_period_start.year,
+        latest_period_start.month,
+        calendar.monthrange(latest_period_start.year, latest_period_start.month)[1],
+    )
+    fetched_date = fetched_at.astimezone().date() if fetched_at.tzinfo else fetched_at.date()
+    if (fetched_date.year, fetched_date.month) == (latest_period_start.year, latest_period_start.month):
+        return min(fetched_date, month_end)
+    return month_end
+
+
+def _default_period(
+    date_min: date,
+    date_max: date,
+    selector_date_max: date | None = None,
+    *,
+    today: date | None = None,
+) -> tuple[date, date]:
+    selector_date_max = selector_date_max or date_max
+    current_month_start = (today or date.today()).replace(day=1)
     latest_month_start = date_max.replace(day=1)
     start = current_month_start if date_min <= current_month_start <= date_max else latest_month_start
     start = max(date_min, min(start, date_max))
-    return start, date_max
+    return start, selector_date_max
 
 
 def _bar_chart(
@@ -474,11 +494,12 @@ def render_membership_dashboard(
 
     date_min = analytics.monthly["periodo_date"].min().date()
     date_max = analytics.monthly["periodo_date"].max().date()
-    default_start, default_end = _default_period(date_min, date_max)
+    selector_date_max = _selector_date_max(date_max, analytics.fetched_at)
+    default_start, default_end = _default_period(date_min, date_max, selector_date_max)
     start_key = f"membership_start_{client.id}"
     end_key = f"membership_end_{client.id}"
     bounds_key = f"membership_bounds_{client.id}"
-    bounds = (date_min, date_max)
+    bounds = (date_min, date_max, selector_date_max)
     if st.session_state.get(bounds_key) != bounds:
         st.session_state[start_key] = default_start
         st.session_state[end_key] = default_end
@@ -492,7 +513,7 @@ def render_membership_dashboard(
             "Periodo inicial",
             value=st.session_state[start_key],
             min_value=date_min,
-            max_value=date_max,
+            max_value=selector_date_max,
             key=start_key,
         )
     with filters[1]:
@@ -500,7 +521,7 @@ def render_membership_dashboard(
             "Periodo final",
             value=st.session_state[end_key],
             min_value=date_min,
-            max_value=date_max,
+            max_value=selector_date_max,
             key=end_key,
         )
     if start > end:
